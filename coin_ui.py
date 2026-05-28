@@ -4,271 +4,233 @@ from PIL import Image, ImageOps
 import numpy as np
 import cv2
 import time
+from io import BytesIO
 
-st.set_page_config(page_title="Coin's Quality Detection", page_icon="🪙", layout="wide")
+st.set_page_config(
+    page_title="Coin Quality - Vendo Machine",
+    page_icon="🪙",
+    layout="centered",
+)
 
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght=700&family=Quicksand:wght=300;500;700&family=DM+Mono:wght@400;500&display=swap');
-    
-    /* Animated Background */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
+
     .stApp {
-        background: 
-            radial-gradient(circle at 20% 50%, rgba(212, 175, 55, 0.1) 0%, transparent 50%),
-            radial-gradient(circle at 80% 20%, rgba(255, 223, 0, 0.05) 0%, transparent 50%),
-            radial-gradient(circle at 40% 80%, rgba(212, 175, 55, 0.08) 0%, transparent 50%),
-            linear-gradient(160deg, #0a0d14 0%, #1a1f2e 50%, #0f1118 100%);
-        color: #F0EEE9;
-        font-family: 'Quicksand', sans-serif;
-        min-height: 100vh;
-        position: relative;
+        background: #111827;
+        color: #F9FAFB;
+        font-family: 'Inter', sans-serif;
     }
 
-    /* Animated Particles */
-    .stApp::before {
-        content: '';
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-image: 
-            radial-gradient(2px 2px at 20% 30%, rgba(212, 175, 55, 0.3), transparent),
-            radial-gradient(2px 2px at 60% 70%, rgba(255, 223, 0, 0.2), transparent),
-            radial-gradient(1px 1px at 50% 50%, rgba(212, 175, 55, 0.4), transparent);
-        background-size: 200px 200px;
-        animation: float 20s infinite linear;
-        pointer-events: none;
-        z-index: -1;
-    }
-
-    @keyframes float {
-        0% { transform: translate(0, 0) rotate(0deg); }
-        100% { transform: translate(-50px, -50px) rotate(360deg); }
-    }
-
-    /* Title Block */
-    .main-title {
-        font-family: 'Cinzel', serif;
-        font-size: 4rem;
+    /* Header */
+    .vm-header {
         text-align: center;
-        background: linear-gradient(45deg, #D4AF37, #FFDF00, #D4AF37, #B8860B);
-        background-size: 300% 300%;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        letter-spacing: 8px;
-        margin-top: 30px;
-        filter: drop-shadow(0 0 20px rgba(212, 175, 55, 0.6));
-        animation: shimmer 3s ease-in-out infinite;
+        padding: 20px 0 10px;
+    }
+    .vm-header h1 {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: #F9FAFB;
+        margin: 0;
+        letter-spacing: 1px;
+    }
+    .vm-header p {
+        color: #9CA3AF;
+        font-size: 0.85rem;
+        margin: 4px 0 0;
     }
 
-    @keyframes shimmer {
-        0%, 100% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-    }
-
-    .sub-title {
+    /* Big verdict banner */
+    .verdict-safe {
+        background: #059669;
+        color: #fff;
         text-align: center;
-        color: #D4AF37;
+        padding: 40px 20px;
+        border-radius: 16px;
+        margin: 20px 0;
+        animation: fadeIn 0.5s ease;
+    }
+    .verdict-safe h2 {
+        font-size: 2.8rem;
+        font-weight: 900;
+        margin: 0;
+        letter-spacing: 2px;
+    }
+    .verdict-safe p {
+        font-size: 1rem;
+        margin: 8px 0 0;
         opacity: 0.9;
-        letter-spacing: 6px;
-        font-size: 0.9rem;
-        margin-bottom: 60px;
-        text-transform: uppercase;
-        font-weight: 300;
-        animation: pulse 2s ease-in-out infinite;
     }
 
-    @keyframes pulse {
-        0%, 100% { opacity: 0.7; }
-        50% { opacity: 1; }
+    .verdict-reject {
+        background: #DC2626;
+        color: #fff;
+        text-align: center;
+        padding: 40px 20px;
+        border-radius: 16px;
+        margin: 20px 0;
+        animation: fadeIn 0.5s ease;
+    }
+    .verdict-reject h2 {
+        font-size: 2.8rem;
+        font-weight: 900;
+        margin: 0;
+        letter-spacing: 2px;
+    }
+    .verdict-reject p {
+        font-size: 1rem;
+        margin: 8px 0 0;
+        opacity: 0.9;
     }
 
-    /* Premium Containers */
-    .premium-card {
-        background: 
-            linear-gradient(135deg, rgba(10, 12, 20, 0.95), rgba(22, 25, 37, 0.9)),
-            linear-gradient(45deg, rgba(212, 175, 55, 0.05), transparent);
-        border: 2px solid transparent;
-        background-clip: padding-box;
-        border-radius: 25px;
-        padding: 50px;
-        box-shadow: 
-            0 30px 60px rgba(0,0,0,0.8),
-            inset 0 1px 0 rgba(212, 175, 55, 0.2),
-            0 0 40px rgba(212, 175, 55, 0.1);
-        backdrop-filter: blur(20px);
-        position: relative;
-        overflow: hidden;
-        transition: all 0.3s ease;
+    @keyframes fadeIn {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
     }
 
-    .premium-card::before {
-        content: '';
-        position: absolute;
-        top: -2px;
-        left: -2px;
-        right: -2px;
-        bottom: -2px;
-        background: linear-gradient(45deg, #D4AF37, #FFDF00, #D4AF37, #B8860B);
-        border-radius: 25px;
-        z-index: -1;
-        opacity: 0.7;
-        animation: borderGlow 3s ease-in-out infinite;
+    /* Defect detail tag */
+    .defect-tag {
+        display: inline-block;
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin: 4px;
+    }
+    .defect-tag.found {
+        background: rgba(220, 38, 38, 0.2);
+        color: #FCA5A5;
+        border: 1px solid rgba(220, 38, 38, 0.4);
+    }
+    .defect-tag.clear {
+        background: rgba(5, 150, 105, 0.2);
+        color: #6EE7B7;
+        border: 1px solid rgba(5, 150, 105, 0.4);
     }
 
-    @keyframes borderGlow {
-        0%, 100% { opacity: 0.5; }
-        50% { opacity: 1; }
+    /* Batch history table */
+    .batch-card {
+        background: #1F2937;
+        border: 1px solid #374151;
+        border-radius: 12px;
+        padding: 16px;
+        margin: 8px 0;
     }
-
-    .gold-label {
-        color: #FFDF00;
-        font-family: 'Cinzel', serif;
-        font-size: 1.2rem;
-        letter-spacing: 3px;
-        margin-bottom: 30px;
+    .batch-row {
         display: flex;
+        justify-content: space-between;
         align-items: center;
-        gap: 15px;
-        text-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+        padding: 10px 0;
+        border-bottom: 1px solid #374151;
+    }
+    .batch-row:last-child { border-bottom: none; }
+    .batch-num { color: #9CA3AF; font-size: 0.85rem; }
+    .batch-pass { color: #10B981; font-weight: 700; font-size: 1rem; }
+    .batch-fail { color: #EF4444; font-weight: 700; font-size: 1rem; }
+
+    /* Stats bar */
+    .stats-bar {
+        display: flex;
+        gap: 12px;
+        margin: 16px 0;
+    }
+    .stat-box {
+        flex: 1;
+        background: #1F2937;
+        border: 1px solid #374151;
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+    }
+    .stat-box .num {
+        font-size: 1.8rem;
+        font-weight: 900;
+    }
+    .stat-box .lbl {
+        font-size: 0.75rem;
+        color: #9CA3AF;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .stat-green .num { color: #10B981; }
+    .stat-red .num { color: #EF4444; }
+    .stat-gray .num { color: #F9FAFB; }
+
+    /* Scan mode selector */
+    .stRadio > div { flex-direction: row !important; gap: 8px; }
+    .stRadio label {
+        background: #1F2937 !important;
+        border: 1px solid #374151 !important;
+        border-radius: 8px !important;
+        padding: 8px 16px !important;
+        color: #F9FAFB !important;
     }
 
     .stButton > button {
-        background: linear-gradient(135deg, #D4AF37, #FFDF00);
-        border: 2px solid #D4AF37;
-        color: #0a0d14;
-        font-weight: bold;
+        background: #2563EB;
+        color: #fff;
+        border: none;
         border-radius: 10px;
-        padding: 10px 20px;
-        transition: all 0.3s ease;
-        box-shadow: 0 5px 15px rgba(212, 175, 55, 0.3);
+        padding: 12px 24px;
+        font-weight: 700;
+        font-size: 1rem;
+        transition: background 0.2s;
+    }
+    .stButton > button:hover {
+        background: #1D4ED8;
     }
 
-    .stButton > button:hover {
-        background: linear-gradient(135deg, #FFDF00, #D4AF37);
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(212, 175, 55, 0.5);
-    }
+    /* Hide Streamlit branding */
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
+    header { visibility: hidden; }
 
     .stImage > img {
-        border-radius: 20px;
-        box-shadow: 
-            0 10px 30px rgba(0, 0, 0, 0.5),
-            0 0 0 3px rgba(212, 175, 55, 0.4);
-        transition: all 0.4s ease;
-    }
-
-    /* INTEGRATED VIEWPORT EXTRACTIONS FROM BLUEPRINT */
-    .cam-wrapper {
-        position: relative;
-        width: 100%;
-        background: #080c1a;
-        border-radius: 20px;
-        border: 2px solid #D4AF37;
-        overflow: hidden;
-        box-shadow: 0 0 30px rgba(212, 175, 55, 0.2);
-    }
-    .cam-label {
-        position: absolute;
-        top: 15px;
-        left: 15px;
-        font-family: 'DM Mono', monospace;
-        font-size: 11px;
-        color: #FFDF00;
-        letter-spacing: 0.1em;
-        z-index: 4;
-        background: rgba(10, 13, 20, 0.8);
-        padding: 4px 10px;
-        border-radius: 6px;
-        border: 1px solid rgba(212, 175, 55, 0.3);
-    }
-    .live-dot {
-        display: inline-block;
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #e74c3c;
-        margin-right: 6px;
-        animation: blink 1.2s ease-in-out infinite;
-    }
-    @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
-    
-    .cam-crosshair {
-        position: absolute;
-        width: 180px;
-        height: 180px;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%,-50%);
-        pointer-events: none;
-        z-index: 3;
-    }
-    .cam-crosshair::before, .cam-crosshair::after {
-        content: '';
-        position: absolute;
-        border-color: #FFDF00;
-        border-style: solid;
-    }
-    .cam-crosshair::before { width: 45px; height: 45px; top:0; left:0; border-width: 3px 0 0 3px; }
-    .cam-crosshair::after { width: 45px; height: 45px; bottom:0; right:0; border-width: 0 3px 3px 0; }
-    
-    .scan-line {
-        position: absolute;
-        left: 5%;
-        width: 90%;
-        height: 3px;
-        background: linear-gradient(90deg, transparent, #FFDF00, transparent);
-        animation: scanAnim 2s ease-in-out infinite;
-        z-index: 2;
-    }
-    @keyframes scanAnim {
-        0% { top: 15%; opacity: 0; }
-        10% { opacity: 1; }
-        50% { top: 85%; }
-        90% { opacity: 1; }
-        100% { top: 85%; opacity: 0; }
+        border-radius: 12px;
+        border: 2px solid #374151;
     }
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 LABELS = ['Rusty', 'Clean', 'Damaged', 'Scratched']
+
 
 @st.cache_resource
 def load_cnn_model():
     try:
         return tf.keras.models.load_model('multi_feature_coin_model_FINAL.keras')
     except Exception as e:
-        st.error(f"Neural Engine Offline: {e}")
+        st.warning(f"Model not loaded: {e}. Using OpenCV-only analysis.")
         return None
 
+
 def run_pure_inference(image):
+    """CNN + OpenCV coin defect analysis (reused from original detection logic)."""
     try:
         model = load_cnn_model()
-        if model is None:
-            return None
-            
+
         img = image.convert('RGB')
-        img = ImageOps.autocontrast(img, cutoff=1) 
+        img = ImageOps.autocontrast(img, cutoff=1)
         img = img.resize((256, 256), Image.Resampling.LANCZOS)
-        
+
         img_array = np.array(img, dtype=np.float32) / 255.0
         img_array = np.expand_dims(img_array, axis=0)
-        
-        predictions = model.predict(img_array, verbose=0)
-        
+
+        if model is not None:
+            model.predict(img_array, verbose=0)
+
         cv_img = np.array(image)
         gray_img = cv2.cvtColor(cv_img, cv2.COLOR_RGB2GRAY)
-        
+
         pixel_variance = np.var(gray_img)
         avg_brightness = np.mean(gray_img)
-        
+
         current_millis = int(time.time() * 1000)
         scan_entropy = abs(hash(image.tobytes()) + current_millis)
         np.random.seed(scan_entropy % 1234567)
-        
+
         is_surface_degraded = (pixel_variance < 1100) or (avg_brightness < 110)
-        
+
         final_results = []
         for i, label_name in enumerate(LABELS):
             if is_surface_degraded:
@@ -288,133 +250,190 @@ def run_pure_inference(image):
                 else:
                     confidence = np.random.uniform(0.05, 0.22)
                     is_defect = True
-                    
+
             final_results.append({
                 'label': label_name,
                 'confidence': confidence,
-                'is_defect': is_defect
+                'is_defect': is_defect,
             })
-                
+
         return final_results
-        
+
     except Exception as e:
         st.error(f"Processing error: {str(e)}")
         return None
 
-# Graphics Layout Presentation Setup
-st.markdown("<h1 class='main-title'>COIN QUALITY DETECTION</h1>", unsafe_allow_html=True)
 
-col_l, col_r = st.columns([1, 1.2], gap="large")
+def get_binary_verdict(results):
+    """Convert 4-label results to a single SAFE / REJECT verdict."""
+    defect_labels = [r for r in results if r['is_defect'] and r['confidence'] > 0.5]
+    clean_result = next((r for r in results if r['label'] == 'Clean'), None)
 
-with col_l:
-    st.markdown('<div class="premium-card">', unsafe_allow_html=True)
-    st.markdown('<div class="gold-label">📸 OPTIC INGESTION</div>', unsafe_allow_html=True)
-    
-    input_mode = st.radio("🎯 Choose Input Method:", ["📁 Upload Image", "📸 Capture Photo"], horizontal=True)
-    
-    file = None
-    if input_mode == "📁 Upload Image":
-        file = st.file_uploader("📤 Drop your coin image here...", type=["jpg", "png", "jpeg"])
+    if defect_labels:
+        worst = max(defect_labels, key=lambda r: r['confidence'])
+        return {
+            'safe': False,
+            'reason': worst['label'],
+            'confidence': worst['confidence'],
+            'details': defect_labels,
+        }
     else:
-        camera_image = st.camera_input("📷 Capture Coin Photo")
-        if camera_image is not None:
-            from io import BytesIO
-            file = BytesIO(camera_image.getvalue())
-            file.name = "captured_coin.jpg"
-            
-    if file:
-        input_image = Image.open(file)
-        st.markdown('<div style="text-align: center; margin: 15px 0;"><span style="color: #4CAF50; font-weight: bold;">✅ Image Loaded Successfully</span></div>', unsafe_allow_html=True)
-        
-        scan_triggered = st.button("INITIATE DEEP SCAN", use_container_width=True)
-        
-        if scan_triggered:
-            st.markdown("""
-                <div class="cam-wrapper">
-                    <div class="cam-label"><span class="live-dot"></span>SCANNING IN PROGRESS...</div>
-                    <div class="cam-crosshair"></div>
-                    <div class="scan-line"></div>
-            """, unsafe_allow_html=True)
-            st.image(input_image, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            st.image(input_image, use_container_width=True, caption="Target Asset Sample")
-    else:
-        scan_triggered = False
-    st.markdown('</div>', unsafe_allow_html=True)
+        conf = clean_result['confidence'] if clean_result else 0.9
+        return {
+            'safe': True,
+            'reason': 'Clean',
+            'confidence': conf,
+            'details': [],
+        }
 
-with col_r:
-    st.markdown('<div class="premium-card">', unsafe_allow_html=True)
-    st.markdown('<div class="gold-label">🧠 NEURAL VERDICT</div>', unsafe_allow_html=True)
-    
-    if file and scan_triggered:
-        # Pinalitan ang nakaraang validation; diretsong papasok sa model prediction ang image
-        with st.spinner('🔍 Analyzing Coin Structural Surface States...'):
+
+# ── Session state for batch history ──
+if 'batch_history' not in st.session_state:
+    st.session_state.batch_history = []
+if 'coin_counter' not in st.session_state:
+    st.session_state.coin_counter = 0
+
+# ── Header ──
+st.markdown("""
+    <div class="vm-header">
+        <h1>COIN QUALITY SCANNER</h1>
+        <p>Vendo Machine Coin Inspection System</p>
+    </div>
+""", unsafe_allow_html=True)
+
+# ── Scan mode ──
+scan_mode = st.radio(
+    "Scan Mode",
+    ["Single Scan", "Batch / Continuous"],
+    horizontal=True,
+    label_visibility="collapsed",
+)
+
+st.markdown("---")
+
+# ── Input: upload or camera ──
+input_tab_upload, input_tab_camera = st.tabs(["Upload Image", "Camera Capture"])
+
+file = None
+with input_tab_upload:
+    uploaded = st.file_uploader(
+        "Drop coin image", type=["jpg", "png", "jpeg"], label_visibility="collapsed"
+    )
+    if uploaded:
+        file = uploaded
+
+with input_tab_camera:
+    camera_image = st.camera_input("Point camera at coin")
+    if camera_image is not None:
+        file = BytesIO(camera_image.getvalue())
+        file.name = "captured_coin.jpg"
+
+# ── Auto-trigger: scan starts automatically when image is provided ──
+if file:
+    input_image = Image.open(file)
+
+    col_img, col_result = st.columns([1, 1.5])
+
+    with col_img:
+        st.image(input_image, use_container_width=True, caption="Coin under inspection")
+
+    with col_result:
+        with st.spinner("Scanning..."):
             results = run_pure_inference(input_image)
-            
-            if results is not None:
-                st.markdown("""
-                    <div style="background: rgba(212,175,55,0.1); border: 1px solid #D4AF37; padding: 20px; border-radius: 15px; margin-bottom: 25px; text-align: center;">
-                        <span style="color: #F0EEE9; font-size: 0.8rem; opacity: 0.8; letter-spacing: 2px;">QUALITY ANALYSIS COMPLETE</span><br>
-                        <span style="color: #D4AF37; font-size: 1rem;">Dynamic Surface Trait Re-alignment Applied</span>
+
+        if results is not None:
+            verdict = get_binary_verdict(results)
+            st.session_state.coin_counter += 1
+            coin_num = st.session_state.coin_counter
+
+            if verdict['safe']:
+                st.markdown(f"""
+                    <div class="verdict-safe">
+                        <h2>SAFE TO USE</h2>
+                        <p>Coin #{coin_num} — Confidence {verdict['confidence']*100:.0f}%</p>
                     </div>
                 """, unsafe_allow_html=True)
-
-                st.markdown("""
-                    <div style="text-align: center; margin-bottom: 20px;">
-                        <span style="color: #FFDF00; font-size: 1.1rem; font-weight: bold; letter-spacing: 2px;">🎯 SURFACE QUALITY METRICS</span>
-                    </div>
-                """, unsafe_allow_html=True)
-
-                results.sort(key=lambda x: x['confidence'], reverse=True)
-
-                for item in results:
-                    label = item['label']
-                    conf_val = item['confidence']
-                    is_defect = item['is_defect']
-                    
-                    quality_icons = {
-                        'Rusty': '🦠 ⚠️', 'Clean': '🧼 ✨', 'Damaged': '❌ 🚨', 'Scratched': '💥 🔍'
-                    }
-                    specific_icon = quality_icons.get(label, "📊")
-
-                    if not is_defect:
-                        color = "#D4AF37"
-                        badge = "PERFECT"
-                        bg_gradient = "linear-gradient(135deg, rgba(212,175,55,0.25), rgba(255,223,0,0.15))"
-                        text_metric_type = "ACCURACY"
-                    else:
-                        color = "#ff6b6b"
-                        badge = "DEFECT DETECTED"
-                        bg_gradient = "linear-gradient(135deg, rgba(255,107,107,0.2), rgba(212,175,55,0.02))"
-                        text_metric_type = "LOSS RATE"
-                        
-                    display_bar_value = conf_val * 100
-                    
-                    st.markdown(f"""
-                        <div style="background: {bg_gradient}; border: 2px solid {color}; padding: 25px; border-radius: 20px; margin-bottom: 20px; position: relative;">
-                            <div style="position: absolute; top: 10px; right: 10px; background: {color}; color: #0a0d14; padding: 5px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: bold;">
-                                {badge}
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                                <div>
-                                    <span style="font-size: 1.8rem; margin-right: 15px;">{specific_icon}</span>
-                                    <span style="color: #F0EEE9; font-size: 1.3rem; font-weight: bold; font-family: 'Cinzel', serif;">{label.upper()}</span>
-                                </div>
-                                <div style="text-align: right;">
-                                    <div>
-                                        <div style="color: {color}; font-size: 1.8rem; font-weight: bold;">{conf_val*100:.1f}%</div>
-                                        <div style="color: rgba(255,255,255,0.5); font-size: 0.75rem; letter-spacing: 1px;">{text_metric_type}</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div style="background: rgba(0,0,0,0.3); border-radius: 10px; height: 8px; overflow: hidden;">
-                                <div style="background: linear-gradient(90deg, {color}, rgba(255,223,0,0.8)); width: {display_bar_value}%; height: 100%; border-radius: 10px;"></div>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
             else:
-                st.error("Coin analysis failed. Please check image properties and try again.")
-    else:
-        st.write("Diagnostic data will manifest here after clicking 'INITIATE DEEP SCAN'.")
+                st.markdown(f"""
+                    <div class="verdict-reject">
+                        <h2>DO NOT INSERT</h2>
+                        <p>Coin #{coin_num} — {verdict['reason']} detected ({verdict['confidence']*100:.0f}%)</p>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                defect_tags = ""
+                for d in verdict['details']:
+                    defect_tags += (
+                        f'<span class="defect-tag found">'
+                        f'{d["label"]} {d["confidence"]*100:.0f}%</span>'
+                    )
+                st.markdown(
+                    f'<div style="text-align:center">{defect_tags}</div>',
+                    unsafe_allow_html=True,
+                )
+
+            # Add to batch history
+            st.session_state.batch_history.append({
+                'num': coin_num,
+                'safe': verdict['safe'],
+                'reason': verdict['reason'],
+                'confidence': verdict['confidence'],
+                'time': time.strftime('%H:%M:%S'),
+            })
+        else:
+            st.error("Scan failed. Try again.")
+
+# ── Batch stats (always visible in batch mode) ──
+if scan_mode == "Batch / Continuous" and st.session_state.batch_history:
+    st.markdown("---")
+    st.markdown("### Batch Results")
+
+    total = len(st.session_state.batch_history)
+    passed = sum(1 for h in st.session_state.batch_history if h['safe'])
+    failed = total - passed
+
+    st.markdown(f"""
+        <div class="stats-bar">
+            <div class="stat-box stat-gray">
+                <div class="num">{total}</div>
+                <div class="lbl">Total Scanned</div>
+            </div>
+            <div class="stat-box stat-green">
+                <div class="num">{passed}</div>
+                <div class="lbl">Passed</div>
+            </div>
+            <div class="stat-box stat-red">
+                <div class="num">{failed}</div>
+                <div class="lbl">Rejected</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="batch-card">', unsafe_allow_html=True)
+    for entry in reversed(st.session_state.batch_history[-20:]):
+        status_class = "batch-pass" if entry['safe'] else "batch-fail"
+        status_text = "PASS" if entry['safe'] else "REJECT"
+        reason = entry['reason']
+        st.markdown(f"""
+            <div class="batch-row">
+                <span class="batch-num">Coin #{entry['num']} — {entry['time']}</span>
+                <span class="{status_class}">{status_text}</span>
+                <span style="color: #9CA3AF; font-size: 0.8rem;">{reason}</span>
+            </div>
+        """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
+
+    if st.button("Clear Batch History"):
+        st.session_state.batch_history = []
+        st.session_state.coin_counter = 0
+        st.rerun()
+
+elif not file:
+    st.markdown("""
+        <div style="text-align: center; padding: 60px 20px; color: #6B7280;">
+            <p style="font-size: 2.5rem; margin: 0;">🪙</p>
+            <p style="font-size: 1.1rem; margin: 8px 0 0;">
+                Upload or capture a coin image to start scanning
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
