@@ -301,7 +301,6 @@ def run_pure_inference(image):
         st.error(f"Processing error: {str(e)}")
         return None
 
-# Graphics Layout Presentation Setup
 st.markdown("<h1 class='main-title'>COIN QUALITY DETECTION</h1>", unsafe_allow_html=True)
 
 col_l, col_r = st.columns([1, 1.2], gap="large")
@@ -348,7 +347,6 @@ with col_r:
     st.markdown('<div class="gold-label">🧠 NEURAL VERDICT</div>', unsafe_allow_html=True)
     
     if file and scan_triggered:
-        # Pinalitan ang nakaraang validation; diretsong papasok sa model prediction ang image
         with st.spinner('🔍 Analyzing Coin Structural Surface States...'):
             results = run_pure_inference(input_image)
             
